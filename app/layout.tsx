@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import Sidebar from "@/components/sidebar";
+import ErrorBoundary from "@/components/error-boundary";
 import { ThemeProvider } from "@/components/theme-provider";
 import { getSetting } from "@/lib/db";
 import { getNotifications } from "@/lib/notifications";
@@ -31,12 +32,21 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
+async function safeSettings() {
+  try {
+    const [businessName, notifications, pinEnabled] = await Promise.all([
+      getSetting("business_name"),
+      getNotifications(),
+      isPinEnabled(),
+    ]);
+    return { businessName, notifications, pinEnabled: !!pinEnabled };
+  } catch {
+    return { businessName: null, notifications: [], pinEnabled: false };
+  }
+}
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [businessName, notifications, pinEnabled] = await Promise.all([
-    getSetting("business_name"),
-    getNotifications(),
-    isPinEnabled(),
-  ]);
+  const { businessName, notifications, pinEnabled } = await safeSettings();
   const store = await cookies();
   const locked = pinEnabled && store.get(PIN_COOKIE)?.value !== "1";
 
@@ -53,7 +63,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Sidebar businessName={businessName ?? "Ilham Business Manager"} notifications={notifications} pinEnabled={pinEnabled} />
               <main className="lg:pl-60">
                 <div className="mx-auto max-w-6xl px-4 py-6 pb-20 sm:px-6 lg:px-8 lg:pb-10">
-                  {children}
+                  <ErrorBoundary>
+                    {children}
+                  </ErrorBoundary>
                 </div>
               </main>
             </>
